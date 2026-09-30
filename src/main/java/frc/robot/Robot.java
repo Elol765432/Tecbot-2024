@@ -1,0 +1,172 @@
+// Copyright (c) FIRST and other WPILib contributors.
+// Open Source Software; you can modify and/or share it under the terms of
+// the WPILib BSD license file in the root directory of this project.
+
+package frc.robot;
+
+import java.util.Optional;
+
+import org.ejml.equation.Sequence;
+import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
+
+import com.pathplanner.lib.pathfinding.LocalADStar;
+import com.pathplanner.lib.pathfinding.Pathfinding;
+
+import choreo.Choreo;
+import choreo.auto.AutoFactory;
+import choreo.auto.AutoRoutine;
+import choreo.trajectory.SwerveSample;
+import choreo.trajectory.Trajectory;
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.CvSink;
+import edu.wpi.first.cscore.CvSource;
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.commands.AutoDriveAndShoot;
+import frc.robot.commands.AutoDriveToPosition;
+import frc.robot.commands.Sequence1;
+import frc.robot.commands.ZeroGyroCommand;
+import frc.robot.resources.TecbotPWMLEDStrip;
+import frc.robot.subsystems.DriveTrain;
+
+public class Robot extends TimedRobot {
+  private Command m_autonomousCommand;
+
+  private static RobotContainer m_robotContainer;
+  private OI m_oi;
+
+  private TecbotPWMLEDStrip ledStrip;
+
+  private int i = 0;
+
+    private final Optional<Trajectory<SwerveSample>> trajectory = Choreo.loadTrajectory("myTrajectory");
+
+    private final Timer timer = new Timer();
+
+  private DriveTrain driveTrain;
+  private AutoFactory autoFactory;
+
+  SendableChooser<Command> m_chooser;
+
+
+
+  @Override
+  public void robotInit() {
+    m_robotContainer = new RobotContainer();
+    Pathfinding.setPathfinder(new LocalADStar());
+    m_oi = new OI(m_robotContainer , m_robotContainer.getPilot(), m_robotContainer.getCopilot());
+    m_oi.configureButtonBindings();
+    m_chooser = m_robotContainer.m_auto_chooser;
+
+    driveTrain = new DriveTrain(m_robotContainer);
+
+    autoFactory = new AutoFactory(
+      driveTrain::getPose2d,
+      driveTrain::resetPose, 
+      driveTrain::followTrajectory, isAutonomous(), driveTrain);
+
+      
+  
+  }
+  
+  public static RobotContainer getRobotContainer(){
+    return m_robotContainer;
+  }
+
+  @Override
+  public void robotPeriodic() {
+    CommandScheduler.getInstance().run();
+    //ledStrip.setSolidHSV(69, 255, 255);
+  }
+
+  @Override
+  public void disabledInit() {}
+
+  @Override
+  public void disabledPeriodic() {}
+
+  @Override
+  public void disabledExit() {}
+
+  private boolean isRedAlliance() {
+        return DriverStation.getAlliance().orElse(Alliance.Blue).equals(Alliance.Red);
+    }
+
+  @Override
+  public void autonomousInit() {
+    //m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+    // recuerda que X es para adelante y está al reves ... el adelante es del roborio a la pila
+    //m_autonomousCommand = new AutoDriveToPosition(m_robotContainer.getDriveTrain() , 0, 0,-1,0,0,90);
+
+        if (trajectory.isPresent()) {
+            Optional<Pose2d> initialPose = trajectory.get().getInitialPose(isRedAlliance());
+
+            if (initialPose.isPresent()) {
+                driveTrain.resetPose(initialPose.get());
+            }
+        }
+
+        timer.restart();
+    
+    
+    CommandScheduler.getInstance().run();
+        m_autonomousCommand = m_chooser.getSelected();
+        // schedule the autonomous command (example)
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.schedule();
+    }
+  }
+
+  @Override
+  public void autonomousPeriodic() {
+    CommandScheduler.getInstance().run();
+    if (trajectory.isPresent()) {
+      Optional<SwerveSample> sample = trajectory.get().sampleAt(timer.get(), isRedAlliance());
+
+      if (sample.isPresent()) {
+          driveTrain.followTrajectory(sample);
+      }
+  }
+  }
+
+  @Override
+  public void autonomousExit() {}
+
+  @Override
+  public void teleopInit() {
+    if (m_autonomousCommand != null) {
+      m_autonomousCommand.cancel();
+    }
+  }
+
+  @Override
+  public void teleopPeriodic() {
+    /*Robot.getRobotContainer().getClimber().onR();
+    Robot.getRobotContainer().getClimber().onL();*/
+    Robot.getRobotContainer().getRampSensorSubsystem().setNoteSensor(true);
+  }
+
+  @Override
+  public void teleopExit() {}
+
+  @Override
+  public void testInit() {
+    CommandScheduler.getInstance().cancelAll();
+  }
+
+  @Override
+  public void testPeriodic() {}
+
+  @Override
+  public void testExit() {}
+}

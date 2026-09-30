@@ -1,0 +1,78 @@
+package frc.robot.subsystems;
+import javax.swing.plaf.basic.BasicInternalFrameTitlePane.SystemMenuBar;
+
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+
+import edu.wpi.first.networktables.GenericEntry;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Ultrasonic;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.RobotContainer;
+import frc.robot.RobotMap;
+import frc.robot.resources.TecbotSpeedController;
+import frc.robot.resources.TecbotSpeedController.TypeOfMotor;
+
+
+public class RampSubsystem extends SubsystemBase {
+  RobotContainer robotContainer;
+  TecbotSpeedController sm1, sm2, im1;
+
+
+  public RampSubsystem(RobotContainer rc){
+   robotContainer = rc;
+    
+   sm1 = new TecbotSpeedController(RobotMap.shooterPorts[1],TypeOfMotor.CAN_SPARK_BRUSHLESS);
+   sm2 = new TecbotSpeedController(RobotMap.shooterPorts[0],TypeOfMotor.CAN_SPARK_BRUSHLESS);
+
+   im1 = new TecbotSpeedController(RobotMap.intakePort[0], TypeOfMotor.VICTOR_SPX);
+
+   SparkMaxConfig config = new SparkMaxConfig();
+  
+   config.idleMode(IdleMode.kCoast);
+
+   sm1.getCANSparkMax().configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+   sm2.getCANSparkMax().configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+
+
+  }
+    
+
+    @Override
+  public void periodic() {
+    // This method will be called once per scheduler run
+
+    SmartDashboard.putBoolean("Is Auto", DriverStation.isAutonomous() );
+    if(!DriverStation.isAutonomous()){
+      im1.set(Math.min(1,robotContainer.getCopilot().getRightTriggerAxis() + robotContainer.getPilot().getRightTriggerAxis())-Math.min(1,robotContainer.getPilot().getLeftTriggerAxis() + robotContainer.getCopilot().getLeftTriggerAxis()));
+    }
+      
+
+    SmartDashboard.putNumber("Top Position", sm1.getCANSparkMax().getEncoder().getPosition());
+    SmartDashboard.putNumber("Bottom Position", sm2.getCANSparkMax().getEncoder().getPosition());
+
+    SmartDashboard.putNumber("Top Velocity", sm1.getCANSparkMax().getEncoder().getVelocity());
+    SmartDashboard.putNumber("Bottom Velocity", sm2.getCANSparkMax().getEncoder().getVelocity());
+
+    //m_rangeFinder.ping();
+  }
+
+
+  public void getRamp(double sTopSpeed, double sBottomSpeed, double intakeSeed){
+    //System.out.println(sTopSpeed + " // "  +  sBottomSpeed + " // " + intakeSeed  );
+    sm1.set(sTopSpeed);
+    sm2.set(-sBottomSpeed);
+    im1.set(intakeSeed);
+  }
+
+  public TecbotSpeedController getBottomMotor(){
+    return sm2;
+  }
+}
+
